@@ -1,3 +1,5 @@
+import os
+
 import face_recognition
 import cv2
 import numpy as np
@@ -6,9 +8,9 @@ from datetime import datetime, timedelta
 from supabase import create_client, Client
 
 # Supabase setup
-SUPABASE_URL = 'https://yxgxrywwaawceiomwsvp.supabase.co'
-SUPABASE_API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl4Z3hyeXd3YWF3Y2Vpb213c3ZwIiwicm9sZSI6ImFub24iLCJpYXQiOjE2OTc5OTc3NTEsImV4cCI6MjAxMzU3Mzc1MX0.uUhu_pheoHoTQHF1-HhygUcshkDCzp0IMqNwbvUn24I"
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_API_KEY)
+# SUPABASE_URL = 'https://yxgxrywwaawceiomwsvp.supabase.co'
+# SUPABASE_API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl4Z3hyeXd3YWF3Y2Vpb213c3ZwIiwicm9sZSI6ImFub24iLCJpYXQiOjE2OTc5OTc3NTEsImV4cCI6MjAxMzU3Mzc1MX0.uUhu_pheoHoTQHF1-HhygUcshkDCzp0IMqNwbvUn24I"
+# supabase: Client = create_client(SUPABASE_URL, SUPABASE_API_KEY)
 
 # A dictionary to hold the last recognized timestamp for each employee
 last_recognized = {}
@@ -26,48 +28,31 @@ last_recognized = {}
 # video_capture = cv2.VideoCapture(0)
 
 
-stream_url = "rtsp://admin:pass%402468@192.168.1.201:554/Streaming/Channels/501"
+stream_url = "rtsp://admin:pass%402468@192.168.1.201:554/Streaming/Channels/502"
 video_capture = cv2.VideoCapture(stream_url)
-# i want to load all images from the folder faces and get the names of the people from the file names
 
+## Path to the folder containing face images
+faces_folder_path = "./faces"
 
-# Load a sample picture and learn how to recognize it.
-obama_image = face_recognition.load_image_file("obama.jpg")
-obama_face_encoding = face_recognition.face_encodings(obama_image)[0]
+# Initialize lists to hold face encodings and names
+known_face_encodings = []
+known_face_names = []
 
-# Load a second sample picture and learn how to recognize it.
-biden_image = face_recognition.load_image_file("biden.jpg")
-biden_face_encoding = face_recognition.face_encodings(biden_image)[0]
+# Iterate over each file in the faces folder
+for filename in os.listdir(faces_folder_path):
+    if filename.endswith(".jpg") or filename.endswith(".png"):  # Check for image files
+        # Extract person's name from the filename (excluding the file extension)
+        name = os.path.splitext(filename)[0]
 
-oss_image = face_recognition.load_image_file("oss.jpg")
-oss_face_encoding = face_recognition.face_encodings(oss_image)[0]
+        # Load the image file and compute face encoding
+        image_path = os.path.join(faces_folder_path, filename)
+        image = face_recognition.load_image_file(image_path)
+        face_encoding = face_recognition.face_encodings(image)[0]
 
-zeez_image = face_recognition.load_image_file("zeez.jpg")
-zeez_face_encoding = face_recognition.face_encodings(zeez_image)[0]
+        # Append the face encoding and name to the lists
+        known_face_encodings.append(face_encoding)
+        known_face_names.append(name)
 
-radwa_image = face_recognition.load_image_file("radwa.jpg")
-radwa_face_encoding = face_recognition.face_encodings(radwa_image)[0]
-
-walid_image = face_recognition.load_image_file("walid.jpg")
-walid_face_encoding = face_recognition.face_encodings(walid_image)[0]
-
-# Create arrays of known face encodings and their names
-known_face_encodings = [
-    obama_face_encoding,
-    biden_face_encoding,
-    oss_face_encoding,
-    zeez_face_encoding,
-    radwa_face_encoding,
-    walid_face_encoding
-]
-known_face_names = [
-    "Barack Obama",
-    "Joe Biden",
-    "Oss",
-    "Zeez",
-    "Radwa",
-    "Walid"
-]
 
 # Initialize some variables
 face_locations = []
@@ -82,13 +67,13 @@ while True:
     # Only process every other frame of video to save time
     if process_this_frame:
         # Resize frame of video to 1/4 size for faster face recognition processing
-        # small_frame = cv2.resize(frame, (0, 0), fx=0.25, fy=0.25)
+        small_frame = cv2.resize(frame, (0, 0), fx=0.5, fy=0.5)
 
         # Convert the image from BGR color (which OpenCV uses) to RGB color (which face_recognition uses)
-        rgb_small_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        rgb_small_frame = cv2.cvtColor(small_frame, cv2.COLOR_BGR2RGB)
 
         # Find all the faces and face encodings in the current frame of video
-        face_locations = face_recognition.face_locations(rgb_small_frame)
+        face_locations = face_recognition.face_locations(rgb_small_frame,model="hog")
         face_encodings = face_recognition.face_encodings(rgb_small_frame, face_locations)
 
         face_names = []
@@ -112,17 +97,17 @@ while True:
                 now = datetime.now()
 
                 # Check the duration since the last recognition
-                last_time = last_recognized.get(name)
-                if not last_time or (now - last_time) > timedelta(minutes=30):  # Adjust the duration as needed
-                    # Log this event to Supabase
-                    data = supabase.table('employee_logs').insert(
-                        {
-                            "employee_name": name,
-                        }
-                    ).execute()
+                # last_time = last_recognized.get(name)
+                # if not last_time or (now - last_time) > timedelta(minutes=30):  # Adjust the duration as needed
+                    # # Log this event to Supabase
+                    # data = supabase.table('employee_logs').insert(
+                    #     {
+                    #         "employee_name": name,
+                    #     }
+                    # ).execute()
 
-                    assert len(data.data) > 0
-                    last_recognized[name] = now
+                    # assert len(data.data) > 0
+                    # last_recognized[name] = now
 
             face_names.append(name)
 
@@ -131,10 +116,10 @@ while True:
     # Display the results
     for (top, right, bottom, left), name in zip(face_locations, face_names):
         # Scale back up face locations since the frame we detected in was scaled to 1/4 size
-        top *= 4
-        right *= 4
-        bottom *= 4
-        left *= 4
+        top *= 2
+        right *= 2
+        bottom *= 2
+        left *= 2
 
         # Draw a box around the face
         cv2.rectangle(frame, (left, top), (right, bottom), (0, 0, 255), 2)
