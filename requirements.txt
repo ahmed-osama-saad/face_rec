@@ -1,0 +1,11 @@
+face-recognition
+opencv-python~=4.8.1.78
+numpy~=1.26.1
+supabase==1.1.1
+postgrest
+httpx
+websockets==10.3
+pylibfreenect2
+cython
+python-dev
+python-numpy
